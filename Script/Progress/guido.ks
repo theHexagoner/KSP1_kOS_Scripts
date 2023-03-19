@@ -3,6 +3,7 @@
 RUNONCEPATH("../common/lib_common.ks").
 
 global CLOSED_LOOP is FALSE.
+global GUIDO is LEXICON("Azimuth", 0.0, "Pitch", 90.0).
 
 // how high is up?
 global launchToApoapsis is 115000.0. // m
@@ -14,9 +15,9 @@ global pitchProgramEndAltitude is 91500.0.  // meters
 // show some stuff in the console when we get into the active guidance
 global velAtAPO is 0.0.
 
-// this should be 1/2 the duration (in seconds) of the ascent burn (all stages)
+// we need to account for how long it takes to build up significant horizontal velocity
 // used to predict launch window for intercepting the KSS orbit
-local halfLaunchSecs is 160.0.
+local halfLaunchSecs is 70.0. //160.0.
 
 // This parameter controls the shape of the ascent curve.
 local pitchProgramExponent is  0.45.
@@ -36,9 +37,9 @@ local function getLaunchAzimuth {
     local launchAzimuthInertial is ARCSIN( COS(launchToInclination) / COS(SHIP:LATITUDE) ).
 
     // To compensate for the rotation of the planet, we need to estimate the orbital velocity we're going to gain during ascent. 
-	// We can ballpark this by assuming a circular orbit at the pitch program end altitude, but there will necessarily be some 
+	// We can ballpark this by assuming a circular orbit at the targeted apoapsis, but there will necessarily be some 
 	// very small error, which we will correct the closed-loop portion of our ascent.
-    local vApproximate is SQRT( SHIP:BODY:MU / ( SHIP:BODY:RADIUS + pitchProgramEndAltitude ) ).
+    local vApproximate is SQRT( SHIP:BODY:MU / ( SHIP:BODY:RADIUS + launchToApoapsis ) ).
 
     // Construct the components of the launch vector in the rotating frame. 
 	// NOTE: In this frame the x axis points north and the y axis points east because KSP
@@ -106,7 +107,7 @@ global function CalculateLaunchDetails {
 		set etaSecs to eta_to_AN + BODY:ROTATIONPERIOD. 
 	}
 		
-	local launchTime is TIMESTAMP(TIME:SECONDS + etaSecs - halfLaunchSecs).
+	local launchTime is TIMESTAMP(TIME:SECONDS + etaSecs ). // - halfLaunchSecs).
 	return LIST(laz, launchTime).
 }
 
@@ -189,10 +190,9 @@ local function visVivaForDesiredFromCurrent {
 }
 
 // then, per iteration:
-global function Guido {
+global function UpdateGuido {
 	parameter shipAlt is 0.0.
 	
-	local results is LEXICON().
 	local newPitch is pitchProgram(shipAlt).
 	
 	// until we start using closed guidance just return the launchAzimuth
@@ -206,10 +206,9 @@ global function Guido {
 		set velAtAPO to visVivaForDesiredFromCurrent().
 	}
 
-	results:ADD("Azimuth", newAzimuth).
-	results:ADD("Pitch", newPitch).
+	SET GUIDO:AZIMUTH TO newAzimuth.
+	SET GUIDO:PITCH TO newPitch.
 
-	return results.
 }
 
 global function GetRelativeInclination {

@@ -32,6 +32,11 @@ launchClampModuleNames:ADD("ReStock", "ModuleRestockLaunchClamp").
 global launchClampModules is LIST().	
 global launchClampEventName is "Release Clamp".
 
+// use these to sound the alarm:
+global warningSirenModule is 0.
+global warningSirenModuleName is "PebkacWarningSiren".
+global warningEventName is "Sound the Alarm".
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //// Progress Spacecraft                                                                                                ////
@@ -46,10 +51,7 @@ global launchShroud is 0.
 // TODO: figure out if/how this actually does anything useful
 global rcsForePIDController  is PIDLOOP(0.001, 0.001, 0.000, 0.0, 1.0).
 
-
-
 global function GetPartsAndModules {
-	parameter hasMLP is false.
 
     // Find all engines on the vehicle that are in stage one.
 	if NOT SHIP:PARTSTAGGEDPATTERN("BLOK_A"):EMPTY { 
@@ -118,7 +120,16 @@ global function GetPartsAndModules {
 			
 			if p:HASMODULE(launchClampModuleNames["ReStock"]) 
 				launchClampModules:ADD(p:GETMODULE(launchClampModuleNames["ReStock"])).
+				
+			if p:HASMODULE(warningSirenModuleName)
+				set warningSirenModule to p:GETMODULE(warningSirenModuleName).
 		}
+	}
+
+	// Get a reference to the launch shroud
+	if NOT SHIP:PARTSTAGGED("SHROUDL"):EMPTY {
+		launchShroudsAll:ADD(SHIP:PARTSTAGGED("SHROUDL")).
+		SET launchShroud to SHIP:PARTSTAGGED("SHROUDL")[0].
 	}
 
 	return validateAll().
@@ -179,6 +190,11 @@ local function validateAll {
 	if launchClampModules:EMPTY {
 		MissionLog("FAIL: Missing launch clamps").
         return FALSE.	
+	}
+
+	if launchClampModules:LENGTH = 1 AND
+	   warningSirenModule = 0 {
+		MissionLog("FAIL: Missing the klaxon").
 	}
 
 	return TRUE.

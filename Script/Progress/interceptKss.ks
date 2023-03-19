@@ -3,7 +3,7 @@
 // this is an ascent guidance script to launch Soyuz/Progress to the KSS from Woomerang
 
 // set this lower after we make this run more efficiently
-SET CONFIG:IPU TO 2000.0.
+SET CONFIG:IPU TO 400.0.
 
 // track the time at the last point when we let KSP have control
 global nowLastTick is TIME(0).  
@@ -20,10 +20,6 @@ GLOBAL KSS is VESSEL("The KSS").
 
 print "Loading parts and modules...".
 RUNONCEPATH("vehicle.ks").
-
-// TODO: make this back into a KAL-9000 program
-//print "Loading launchpad controls...".
-//RUNONCEPATH("MLP.ks").
 
 print "Starting guidance program...".
 RUNONCEPATH("guido.ks").
@@ -105,7 +101,7 @@ local function ModeGetLaunchWindow {
 	set controlAzimuth to launchDetails[0].	
 	set launchWindowTS to launchDetails[1].
 
-	missionLog("Launch to: " + launchDetails[0] + "°").
+	missionLog("Launch to: " + RoundZero(launchDetails[0], 2) + "°").
 	missionLog("Launch at: " + launchWindowTS:FULL).	
 
 	set stateFunction to ModePrelaunchTransitionIn@.
@@ -120,28 +116,31 @@ local function ModeGetLaunchWindow {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 local hasMLP is FALSE.
+local soundWarning is FALSE.
 
 local function ModePrelaunchTransitionIn {
     set modeName to "PRELAUNCH".
     // missionLog("MODE to " + modeName).
 
-	// TODO: make MLP stuff be controlled by HAL
-	//set hasMLP to initializeMLP(launchWindowTS:SECONDS).	
-
 	// examine the ship and get all the parts and modules
-	if GetPartsAndModules(hasMLP) = FALSE {
+	if GetPartsAndModules() = FALSE {
 		missionLog("FAIL: Active vessel did not meet specs.").
 		set stateFunction to ModeEndProgramTransitionIn@.
 		return.
 	}
 	
 	// ALL INIT COMPLETE?
+	set hasMLP to NOT SHIP:PARTSTAGGED("PREGAME"):EMPTY.
+	
+	when SHIP:SENSORS:LIGHT >= 0.75 then LIGHTS OFF.
+	when SHIP:SENSORS:LIGHT <= 0.85 then LIGHTS ON.
 	
 	if hasMLP {
+		missionLog("Found MLP").
 		WarpToLaunch(launchWindowTS:SECONDS - 70). // @ T-minus 70s
 		set stateFunction to ModePrelaunchLoopFunction@.
 	} else {
-		WarpToLaunch(launchWindowTS:SECONDS).
+		WarpToLaunch(launchWindowTS:SECONDS - 5).
 		set stateFunction to ModeIgnitionLoopFunction@.
 	}
 
@@ -160,10 +159,29 @@ local function ModePrelaunchLoopFunction {
 		return.
 	}
 	
-	// when we hit T-minus 60, play the MLP toys
-	if TIME:SECONDS >= launchWindowTS:SECONDS - 60 {
-		if hasMLP AND (playMLP() = FALSE) {
-			set stateFunction to ModeEndProgramTransitionIn@.
+	// make sure we are at full main throttle
+	if TIME:SECONDS >= launchWindowTS:SECONDS - 5 {
+		set controlThrottle to 1.0.
+		lock THROTTLE to controlThrottle.
+		return.
+	}
+	
+	// TODO: redo the plugin so this is an action we can control with KAL
+	// when we hit T-MINUS 60, play the SIREN
+	if TIME:SECONDS >= launchWindowTS:SECONDS - 60 AND soundWarning {
+		set soundWarning to FALSE.
+		if warningSirenModule <> 0 AND warningSirenModule:HASEVENT(warningEventName) 
+			warningSirenModule:DOEVENT(warningEventName).
+	}
+	
+	// when we hit T-minus 70, play the MLP toys
+	if TIME:SECONDS >= launchWindowTS:SECONDS - 70 {
+		if hasMLP {
+			set hasMLP to FALSE.
+			set soundWarning to TRUE.
+			local p is SHIP:PARTSTAGGED("PREGAME")[0].
+			local m is p:GETMODULE("ModuleRoboticController").
+			m:DOACTION("Play Sequence", TRUE).
 			return.		
 		}
 	}
@@ -171,6 +189,7 @@ local function ModePrelaunchLoopFunction {
 	return.
 }
 
+// NO MLP, so just fire engines
 local function ModeIgnitionLoopFunction {
 
 	if TIME:SECONDS >= launchWindowTS:SECONDS - 5 {
@@ -286,8 +305,6 @@ local function ModeLiftoffLoopFunction {
     return.
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // MODE ASCENT PROGRAM                                                                                                  ////
 // basically, this gets us from Liftoff to clearing any moorings                                                        ////
@@ -313,7 +330,6 @@ local function ModeAscentProgramLoopFunction {
 
     return.
 }
-
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -357,6 +373,9 @@ local function ModePitchProgramTransitionIn {
     set modeName to "PITCH PROGRAM".
     // missionLog("MODE to " + modeName).
 
+	// what's the worst that could happen?
+	CLOSED_LOOP ON.
+
 	// make sure we are at full throttle
     set controlThrottle to 1.0.
 
@@ -364,6 +383,7 @@ local function ModePitchProgramTransitionIn {
     return.
 }
 
+// TODO: maybe we can just used closed loop all the way up
 local function ClosedLoopGuidanceTransitionIn {
     set modeName to "CLOSED LOOP".
     // missionLog("MODE to " + modeName).
@@ -435,10 +455,10 @@ local function ModeFlightLoopFunction {
         return.
     }
 		
-	local lex is Guido(SHIP:ALTITUDE).
+	UpdateGuido(SHIP:ALTITUDE).
 
-	set controlPitch to lex["Pitch"].
-	set controlAzimuth to lex["Azimuth"].
+	set controlPitch to GUIDO:PITCH.
+	set controlAzimuth to GUIDO:AZIMUTH.
 	set myHeading to HEADING(controlAzimuth, controlPitch).
 	set STEERING to myHeading.
 	
@@ -508,7 +528,8 @@ local function ModeBoosterSeparationLoopFunction {
 		
 		set currentStage to 2.
 
-        set stateFunction to ClosedLoopGuidanceTransitionIn@.
+//        set stateFunction to ClosedLoopGuidanceTransitionIn@.
+		set stateFunction to ModePitchProgramTransitionIn@.
         return.
     }
 
@@ -616,7 +637,9 @@ local function ModeS2SeparationLoopFunction {
 
 		// we are not done pitching
 		if SHIP:ALTITUDE < pitchProgramEndAltitude {
-			set stateFunction to ClosedLoopGuidanceTransitionIn@.
+//			set stateFunction to ClosedLoopGuidanceTransitionIn@.
+			set stateFunction to ModePitchProgramTransitionIn@.
+
 			return.
 		}
 
@@ -685,10 +708,10 @@ local function ModeRaiseApoapsisLoopFunction {
     }
 
 	// keep on burning at the horizon
-	local lex is Guido(SHIP:ALTITUDE).
+	UpdateGuido(SHIP:ALTITUDE).
 
-	set controlPitch to 0.0.
-	set controlAzimuth to lex["Azimuth"].
+	set controlPitch to GUIDO:PITCH.
+	set controlAzimuth to GUIDO:AZIMUTH.
 	set myHeading to HEADING(controlAzimuth, controlPitch).
 	set STEERING to myHeading.
 
@@ -783,10 +806,10 @@ local function ModePoweredCoastLoopFunction {
 	// give it a boost
     set SHIP:CONTROL:FORE to rcsForePIDController:UPDATE(TIME:SECONDS, ALT:APOAPSIS).
 
-	local lex is Guido(SHIP:ALTITUDE).
+	UpdateGuido(SHIP:ALTITUDE).
 
-	set controlPitch to 0.0.
-	set controlAzimuth to lex["Azimuth"].
+	set controlPitch to GUIDO:PITCH.
+	set controlAzimuth to GUIDO:AZIMUTH.
 	set myHeading to HEADING(controlAzimuth, controlPitch).
 	set STEERING to myHeading.
 
@@ -866,11 +889,14 @@ local function ModeNullRatesLoopFunction {
 local function ModeEndProgramTransitionIn {
     set modeName to "END PROGRAM".
     // missionLog("MODE to " + modeName).
-
-    UNLOCK THROTTLE.
-    UNLOCK STEERING.
-    set SHIP:CONTROL:NEUTRALIZE to TRUE.
+    
+	set SHIP:CONTROL:NEUTRALIZE to TRUE.
 	set SHIP:CONTROL:PILOTMAINTHROTTLE to 0.0.
+    
+	UNLOCK THROTTLE.
+    UNLOCK STEERING.
+	WAIT 1.
+	
     set RCS to initialRCS.
 	set SAS to initialSAS.
 
@@ -984,23 +1010,32 @@ global function WarpToLaunch
 {
 	PARAMETER newTS. // seconds since epoch
 	
-	if newTS - TIME:SECONDS > 5 {
-		missionLog("Waiting for Launch Window to open").
-		
-		until WARPMODE = "RAILS" { 
-			set WARPMODE to "RAILS". 
-			set WARP to 1. 
-			wait 0.2. 
-		}
-	
-		kuniverse:TimeWarp:WARPTO(newTS).
+//	if newTS - TIME:SECONDS > 5 {
+//		missionLog("Waiting for Launch Window to open").
+//		
+//		until WARPMODE = "RAILS" { 
+//			set WARPMODE to "RAILS". 
+//			set WARP to 1. 
+//			wait 0.2. 
+//		}
+//	
+//		missionLog("Warping to: " + TIME(newTS):FULL).
+//		kuniverse:TimeWarp:WARPTO(newTS).
+//
+//	} ELSE {
+//		missionLog("T-minus " + (TIME:SECONDS - newTS)).
+//	
+//	}
+//	
+//	return.
 
-	} ELSE {
-		missionLog("T-minus " + (TIME:SECONDS - newTS)).
-	
-	}
-	
-	return.
+	RUNONCEPATH("../common/lib_warpControl.ks").
+	LOCAL warpCon TO warp_control_init().
+
+	WAIT UNTIL warpCon:execute(newTS - TIME:SECONDS).
+
+	missionLog("Warped to: " + TIME:FULL).
+
 }
 
 
