@@ -264,12 +264,13 @@ GLOBAL FUNCTION GetRelativeInclination {
 LOCAL FUNCTION GetFuturePhaseAngle {
 	PARAMETER ts_AtTime.	// ut in seconds
 
-	//LOCAL bodyPosNormed IS POSITIONAT(
+	LOCAL bodyPos IS POSITIONAT(BODY, ts_AtTime).
+	LOCAL bodyPosNormed IS bodyPos:NORMALIZED.
+	LOCAL kssPos IS POSITIONAT(KSS, ts_AtTime).
 	
-
-	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, SHIP:VELOCITY:ORBIT:NORMALIZED):NORMALIZED.
-	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, TARGET:POSITION - BODY:POSITION):NORMALIZED).
-	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (TARGET:POSITION - BODY:POSITION):NORMALIZED).
+	LOCAL binormal IS VCRS(-bodyPosNormed, VELOCITYAT(SHIP, ts_atTime):ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(-bodyPosNormed, VXCL(binormal, kssPos - bodyPos):NORMALIZED).
+	LOCAL signVector IS VCRS(-bodyPosNormed, (kssPos - bodyPos):NORMALIZED).
 	LOCAL sign IS VDOT(binormal, signVector).
 	
     IF sign < 0 {
