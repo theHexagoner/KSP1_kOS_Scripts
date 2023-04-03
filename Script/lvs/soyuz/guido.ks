@@ -102,10 +102,12 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 
 	// we need to subtract our distance travelled from that figure
 	// we also need to take some out to ensure that we come up -behind- the KSS
+	// maxPhase seems to be ~ 18 deg.
 	LOCAL maxPhase IS kssTravelDegs -ascentDegs -3.0.  
-	LOCAL minPhase IS maxPhase -5.0.
 
-	// maxPhase seems to be ~ 18 deg and min phase would thus be  ~13 deg with a 5 degree "window"
+	// for now, lets just say mininum phase can be 18 degrees past the launch site.
+	LOCAL minPhase IS -maxPhase.
+	
 
 	// loop until we find the first suitable window.
 	LOCAL etaSecs IS -1.
@@ -136,7 +138,7 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 		PRINT iter AT (20, 1).
 		SET iter TO iter + 1.
 		//SET validWindow TO etaSecs > 600.
-		WAIT 0.2.
+		WAIT 10.
 	}
 		
 	LOCAL launchTime IS TIMESTAMP(TIME:SECONDS + etaSecs - halfLaunchSecs).
@@ -261,37 +263,26 @@ GLOBAL FUNCTION GetRelativeInclination {
 
 LOCAL FUNCTION GetFuturePhaseAngle {
 	PARAMETER ts_AtTime.	// ut in seconds
-			 
-	// get position of KSS at that time
-	LOCAL posKSS IS POSITIONAT(KSS, ts_AtTime) - POSITIONAT(BODY, ts_AtTime).
-	LOCAL posKSS2 IS POSITIONAT(KSS, ts_AtTime + 10) - POSITIONAT(BODY, ts_AtTime + 10).
-		
-	// get geoposition of KSS at that time
-	LOCAL geoKSS IS BODY:GEOPOSITIONOF(posKSS).
-	LOCAL geoKSS2 IS BODY:GEOPOSITIONOF(posKSS2).
-	
-	// we know the geoposition of Woomerang
-	LOCAL geoWoo IS LATLNG(45.29, 136.11).
-	
-	// get the great circle distance between these two points
-	LOCAL dist IS GreatCircleDistance(geoKSS, geoWoo, BODY:RADIUS).
-	LOCAL dist2 IS GreatCircleDistance(geoKSS2, geoWoo, BODY:RADIUS).
-	
-	IF dist2 - dist > 0 {		
-		missionLog("moving away", ts_AtTime).
-		RETURN 0.
-	}
-		
-	// since we know the circumference of Kerbin we can convert this to degrees
-	LOCAL circumf IS 2.0 * CONSTANT:PI * BODY:RADIUS.
-	LOCAL fract IS dist / circumf.
-	LOCAL degs IS 360 * fract.
 
-	missionLog("degs: " + degs, ts_AtTime).
-
-	// but how do we tell whether this distance is "ahead of" or "behind" the launch site?
+	//LOCAL bodyPosNormed IS POSITIONAT(
 	
-	RETURN degs.
+
+	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, SHIP:VELOCITY:ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, TARGET:POSITION - BODY:POSITION):NORMALIZED).
+	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (TARGET:POSITION - BODY:POSITION):NORMALIZED).
+	LOCAL sign IS VDOT(binormal, signVector).
+	
+    IF sign < 0 {
+        // RETURN -phase. 		// if you want negative values to represent "the target is behind the ship" in orbit
+		RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
+		//RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
+    }
+    ELSE {
+        //RETURN phase.			// if you want positive values to represent "the target is ahead of the ship" in orbit
+		RETURN -phase.			// if you want positive values to represent "the ship is ahead of the target" in orbit.
+		//RETURN 360 - phase.	// if you want this to be an absolute value of how far ahead of the target is your ship
+    }		 
+
 
 }
 
@@ -304,11 +295,14 @@ LOCAL FUNCTION GetPhaseAngle {
 	LOCAL sign IS VDOT(binormal, signVector).
 	
     IF sign < 0 {
-        // RETURN -phase. // if you want negative values to represent "the target is behind the ship" in orbit
-		RETURN 360 - phase.  // if you want this to be an absolute value of far ahead of your ship is the target
+        // RETURN -phase. 		// if you want negative values to represent "the target is behind the ship" in orbit
+		RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
+		//RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
     }
     ELSE {
-        RETURN phase.
+        //RETURN phase.			// if you want positive values to represent "the target is ahead of the ship" in orbit
+		RETURN -phase.			// if you want positive values to represent "the ship is ahead of the target" in orbit.
+		//RETURN 360 - phase.	// if you want this to be an absolute value of how far ahead of the target is your ship
     }
 
 }
