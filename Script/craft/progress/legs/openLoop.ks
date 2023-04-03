@@ -1,9 +1,6 @@
 @LAZYGLOBAL OFF.
 
-RUNONCEPATH("../common/lib_common.ks").
-
-global CLOSED_LOOP is FALSE.
-global GUIDO is LEXICON("Azimuth", 0.0, "Pitch", 90.0).
+RUNONCEPATH("common/lib_common.ks").
 
 // how high is up?
 global launchToApoapsis is 115000.0. // m
@@ -12,16 +9,15 @@ global launchToApoapsis is 115000.0. // m
 // this seems to be more or less constrained to the top of the atmosphere when using the sqrt solution for controlling pitch
 global pitchProgramEndAltitude is 91500.0.  // meters
 
-// show some stuff in the console when we get into the active guidance
-global velAtAPO is 0.0.
-
-// we need to account for how long it takes to build up significant horizontal velocity
+// this should be 1/2 the duration (in seconds) of the ascent burn (all stages)
 // used to predict launch window for intercepting the KSS orbit
-local halfLaunchSecs is 70.0. //160.0.
+local halfLaunchSecs is 160.0.
 
 // This parameter controls the shape of the ascent curve.
 local pitchProgramExponent is  0.45.
 
+// 1 = Get the normal vector of the target orbit.
+local KSS is VESSEL("The KSS").
 
 // We are launching at the KSS, which is generally in an orbit inclined to 51.6 deg
 local launchToInclination is KSS:OBT:INCLINATION.
@@ -37,9 +33,9 @@ local function getLaunchAzimuth {
     local launchAzimuthInertial is ARCSIN( COS(launchToInclination) / COS(SHIP:LATITUDE) ).
 
     // To compensate for the rotation of the planet, we need to estimate the orbital velocity we're going to gain during ascent. 
-	// We can ballpark this by assuming a circular orbit at the targeted apoapsis, but there will necessarily be some 
+	// We can ballpark this by assuming a circular orbit at the pitch program end altitude, but there will necessarily be some 
 	// very small error, which we will correct the closed-loop portion of our ascent.
-    local vApproximate is SQRT( SHIP:BODY:MU / ( SHIP:BODY:RADIUS + launchToApoapsis ) ).
+    local vApproximate is SQRT( SHIP:BODY:MU / ( SHIP:BODY:RADIUS + pitchProgramEndAltitude ) ).
 
     // Construct the components of the launch vector in the rotating frame. 
 	// NOTE: In this frame the x axis points north and the y axis points east because KSP
@@ -107,7 +103,7 @@ global function CalculateLaunchDetails {
 		set etaSecs to eta_to_AN + BODY:ROTATIONPERIOD. 
 	}
 		
-	local launchTime is TIMESTAMP(TIME:SECONDS + etaSecs ). // - halfLaunchSecs).
+	local launchTime is TIMESTAMP(TIME:SECONDS + etaSecs - halfLaunchSecs).
 	return LIST(laz, launchTime).
 }
 
@@ -117,7 +113,6 @@ local function pitchProgram {
 	parameter shipAlt is 0.0.
 	return MAX(0.0, 90.0 - 90.0 * (shipAlt / pitchProgramEndAltitude) ^ pitchProgramExponent).
 }
-
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,21 +144,20 @@ local function getAzimuth {
 // way we need to turn to get into a matching orbital plane
 local function calculateDirectionalVector {
 
-	// 1 = get the normal vector of the target orbit:
 	local tnv is craftNormal(KSS, TIME).
+	local rv is posAt(SHIP, TIME).
 
 	// 2 = Get the cross product of the target normal and your radius vector 
 	// 3 = Normalize the result of the cross product 
-	local rv is posAt(SHIP, TIME).
-	local cnorm is VCRS(rv, tnv):NORMALIZED.
+	local cnorm is VCRS(tnv, rv):NORMALIZED.
 
 	// this gives you the unit vector you can construct a desired velocity vector from
 
 	// 4 = Calculate the orbital velocity required to reach your target AP given your current PE.
-	set velAtAPO to visVivaForDesiredFromCurrent().
+	local vel is visVivaForDesiredFromCurrent().
 
 	// 5 = Multiply the vector from step 3 by the result of step 4, this is your desired direction vector.
-	local dirVector is cNorm * velAtAPO.
+	local dirVector is cNorm * vel.
 
 	// 6 = Exclude the upvector from your orbital velocity vector.
 	// 7 = Normalize the excluded vector, this is the basis for your current direction vector.
@@ -176,7 +170,12 @@ local function calculateDirectionalVector {
 	// this vector gives you the direction along which you should point the vessel
 	local vForDir is dirVector - curVector.
 
+	// update the HUD
+	set velCurrent to SHIP:VELOCITY:ORBIT:MAG.
+	set velAtAPO to vel.
+
 	return vForDir.
+
 }
 
 // Calculate the orbital velocity required to reach your target AP given your current PE.
@@ -190,25 +189,26 @@ local function visVivaForDesiredFromCurrent {
 }
 
 // then, per iteration:
-global function UpdateGuido {
-	parameter shipAlt is 0.0.
+global function Guido {
+	parameter shipAlt is 0.0,
+			  closed is FALSE.
 	
+	local results is LEXICON().
 	local newPitch is pitchProgram(shipAlt).
 	
 	// until we start using closed guidance just return the launchAzimuth
-	local newAzimuth is controlAzimuth.
+	local newAzimuth is launchAzimuth.
 	
-	if CLOSED_LOOP {
+	if closed {
 		// get guido to steer into the KSS orbital plane:
 		local vForDir is calculateDirectionalVector().	
-		set newAzimuth to getAzimuth(vForDir).	
-	} else {
-		set velAtAPO to visVivaForDesiredFromCurrent().
+		newAzimuth is getAzimuth(vForDir).	
 	}
 
-	SET GUIDO:AZIMUTH TO newAzimuth.
-	SET GUIDO:PITCH TO newPitch.
+	results:ADD("Azimuth", newAzimuth).
+	results:ADD("Pitch", newPitch).
 
+	return results.
 }
 
 global function GetRelativeInclination {
