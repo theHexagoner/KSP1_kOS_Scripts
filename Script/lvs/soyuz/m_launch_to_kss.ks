@@ -135,7 +135,7 @@ LOCAL FUNCTION Mode_Pre_N {
     SET modeName TO "PRELAUNCH".
     missionLog("MODE TO " + modeName).
 	
-	missionLog("predicted phase: " + GetFuturePhaseAngle(launchWindowTS:SECONDS)).
+	missionLog("predicted phase: " + GetFuturePhaseAngle(launchWindowTS:SECONDS - TIME:SECONDS)).
 
 	// examine the ship and get all the parts and modules
 	IF GetSoyuzRocket() = FALSE {
@@ -206,7 +206,7 @@ LOCAL FUNCTION Mode_Pre_Loop {
 	IF TIME:SECONDS >= launchWindowTS:SECONDS - 60 AND soundWarning {
 		SET soundWarning TO FALSE.
 		
-		missionLog("predicted phase: " + GetFuturePhaseAngle(launchWindowTS:SECONDS)).
+		missionLog("predicted phase: " + GetFuturePhaseAngle(launchWindowTS:SECONDS - TIME:SECONDS)).
 		
 		IF warningSirenModule <> 0 AND 
 		   warningSirenModule:HASEVENT(warningEventName) {

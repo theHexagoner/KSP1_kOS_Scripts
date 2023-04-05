@@ -113,24 +113,28 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 	LOCAL etaSecs IS -1.
 	LOCAL iter IS 1.
 	LOCAL validWindow IS FALSE.
+	LOCAL ts_AtTime IS 0.0.
 
 	UNTIL validWindow {
 		// we prefer a northerly launch so check it first	
 		LOCAL eta_to_AN IS etaToOrbitPlane(TRUE, iter).
-		LOCAL anPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_AN - halfLaunchSecs).
+		SET ts_AtTime TO TIME:SECONDS + eta_to_AN - halfLaunchSecs.
+		LOCAL anPA IS GetFuturePhaseAngle(ts_AtTime).
 		
 		IF anPA < maxPhase AND anPA > minPhase  {
 			missionLog("anPA: " + RoundZero(anPa, 2)).
-			missionLog("at " + TIMESTAMP(TIME:SECONDS + eta_to_AN - halfLaunchSecs):FULL).
+			missionLog("in " + (eta_to_AN - halfLaunchSecs)).
+			missionLog("future long: " + ( eta_to_AN - halfLaunchSecs) / ship:body:rotationperiod * 360).
 			SET etaSecs TO eta_to_AN.
 		} ELSE {
 			// if that didn't work try again with a southerly launch
 			LOCAL eta_to_DN IS etaToOrbitPlane(FALSE, iter).
-			LOCAL dnPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_DN - halfLaunchSecs).
+			SET ts_AtTime TO TIME:SECONDS + eta_to_DN - halfLaunchSecs.
+			LOCAL dnPA IS GetFuturePhaseAngle(ts_AtTime).
 			
 			IF dnPA < maxPhase AND dnPA > minPhase {
 				missionLog("dnPA: " + RoundZero(dnPa, 2)).
-				missionLog("at " + TIMESTAMP(TIME:SECONDS + eta_to_DN - halfLaunchSecs):FULL).
+				missionLog("in " + (eta_to_DN - halfLaunchSecs)).
 				SET etaSecs TO eta_to_DN.
 				SET laz TO mAngle(180 - laz).
 			} ELSE {
@@ -263,13 +267,13 @@ GLOBAL FUNCTION GetRelativeInclination {
 }
 
 GLOBAL FUNCTION GetFuturePhaseAngle {
-	PARAMETER ts_AtTime.	// ut in seconds
+	PARAMETER ts_AtTime.	// seconds at epoch
+	
+	LOCAL shipPosAt IS CalcGeoPositionAt(SHIP:GEOPOSITION, ts_AtTime).
 
-	//LOCAL bodyPosNormed IS POSITIONAT(
-
-	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, VELOCITYAT(SHIP, ts_AtTime):ORBIT:NORMALIZED):NORMALIZED.
-	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, POSITIONAT(KSS, ts_AtTime) - BODY:POSITION):NORMALIZED).
-	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (POSITIONAT(KSS, ts_AtTime) - BODY:POSITION):NORMALIZED).
+	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, VELOCITYAT(KSS, ts_AtTime):ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, shipPosAt - BODY:POSITION):NORMALIZED).
+	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (shipPosAt - BODY:POSITION):NORMALIZED).
 	LOCAL sign IS VDOT(binormal, signVector).
 	
     IF sign < 0 {
@@ -305,5 +309,20 @@ LOCAL FUNCTION GetPhaseAngle {
 		RETURN phase.			// if you want this to be an absolute value of how far ahead of your ship is the target
     }
 
+}
+
+
+// courtesy of u/JitteryJet
+// Calculates the position vector of the spot above (or below) a geographical coordinate at some time in the future.
+LOCAL FUNCTION CalcGeoPositionAt {
+    PARAMETER geo,			// geoposition
+			  ts_AtTime.	// seconds from epoch
+			  
+	LOCAL duration IS ts_AtTime - TIME:SECONDS. // how long we twist
+	LOCAL plusDPS IS BODY:ROTATIONPERIOD / 360.  // how many degrees per second, for 2.5x Kerbin should be 0.01335856618056328620728041856841
+	LOCAL plusDegs IS duration * plusDPS.
+    LOCAL futureLong IS geo:LNG + plusDegs. 
+	LOCAL futureR IS LATLNG(geo:LAT, futureLong):POSITION.
+    RETURN futureR.
 }
 

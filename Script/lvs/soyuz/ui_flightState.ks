@@ -164,7 +164,7 @@ GLOBAL FUNCTION UpdateFlightState {
 		}
 	}
 
-	SET phase TO GetFuturePhaseAngle(TIME:SECONDS).
+	SET phase TO GetPhaseAngle().
 
     RETURN.
 }
