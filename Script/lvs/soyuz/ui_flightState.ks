@@ -7,8 +7,7 @@
 
 RUNONCEPATH("/common/lib_common.ks").
 RUNONCEPATH("/common/lib_strings.ks").
-
-//RUNONCEPATH("guido.ks").
+RUNONCEPATH("guido.ks").
 
 // keep track of time
 LOCAL tPrevious IS TIME(0).
@@ -58,6 +57,7 @@ LOCAL missionLogLineNumber IS 17.
 // show the error:
 GLOBAL planeError IS 0.0.
 GLOBAL corrAngle IS 0.0.
+GLOBAL phase IS 0.0.
 
 GLOBAL FUNCTION InitializeScreen {
     CLEARSCREEN.
@@ -83,7 +83,7 @@ GLOBAL FUNCTION InitializeScreen {
     PRINT "| CUR VEL    XX.XX m/s²                         | ". // 11
     PRINT "|                                               | ". // 12
 	PRINT "| AZ        XXX.XXX °     PLANE ERR  XXX.XXX °  | ". // 13
-	PRINT "| Pitch     XXX.XXX °                           | ". // 14
+	PRINT "| Pitch     XXX.XXX °     PHASE      XXX.XXX °  | ". // 14
     PRINT "+-----------------------+-----------------------+ ". // 15
     PRINT "                                                  ". // 16
 
@@ -164,6 +164,8 @@ GLOBAL FUNCTION UpdateFlightState {
 		}
 	}
 
+	SET phase TO GetFuturePhaseAngle(TIME:SECONDS).
+
     RETURN.
 }
 
@@ -210,6 +212,7 @@ GLOBAL FUNCTION UpdateScreen {
 	PRINT RoundZero(controlPitch, 3):PADLEFT(7)     			AT (12,  14).
 
 	PRINT RoundZero(planeError, 3):PADLEFT(8)    				AT (36,  13).
+	PRINT RoundZero(phase, 3):PADLEFT(8)    					AT (36,  14).
 
     RETURN.
 }

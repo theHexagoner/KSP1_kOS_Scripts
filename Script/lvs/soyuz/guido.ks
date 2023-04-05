@@ -104,10 +104,10 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 	// we also need to take some out to ensure that we come up -behind- the KSS
 	// maxPhase seems to be ~ 18 deg.
 	LOCAL maxPhase IS kssTravelDegs -ascentDegs -3.0.  
+	missionLog("max: " + maxPhase).
 
 	// for now, lets just say mininum phase can be 18 degrees past the launch site.
 	LOCAL minPhase IS -maxPhase.
-	
 
 	// loop until we find the first suitable window.
 	LOCAL etaSecs IS -1.
@@ -117,32 +117,30 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 	UNTIL validWindow {
 		// we prefer a northerly launch so check it first	
 		LOCAL eta_to_AN IS etaToOrbitPlane(TRUE, iter).
-		LOCAL anPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_AN).
-		
-		missionLog("anPA: " + RoundZero(anPa, 2)).
+		LOCAL anPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_AN - halfLaunchSecs).
 		
 		IF anPA < maxPhase AND anPA > minPhase  {
+			missionLog("anPA: " + RoundZero(anPa, 2)).
+			missionLog("at " + TIMESTAMP(TIME:SECONDS + eta_to_AN - halfLaunchSecs):FULL).
 			SET etaSecs TO eta_to_AN.
-		
 		} ELSE {
 			// if that didn't work try again with a southerly launch
 			LOCAL eta_to_DN IS etaToOrbitPlane(FALSE, iter).
-			LOCAL dnPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_DN).
-
-			missionLog("dnPA: " + RoundZero(dnPa, 2)).
+			LOCAL dnPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_DN - halfLaunchSecs).
 			
 			IF dnPA < maxPhase AND dnPA > minPhase {
+				missionLog("dnPA: " + RoundZero(dnPa, 2)).
+				missionLog("at " + TIMESTAMP(TIME:SECONDS + eta_to_DN - halfLaunchSecs):FULL).
 				SET etaSecs TO eta_to_DN.
 				SET laz TO mAngle(180 - laz).
 			} ELSE {
 				SET iter TO iter + 1.
 			}
 		}
-
-		PRINT iter AT (20, 1).
-		SET iter TO iter + 1.
+		
 		SET validWindow TO etaSecs > 600.
-		WAIT 0.1.
+		IF NOT validWindow SET iter TO iter + 1.
+		WAIT 0.01.
 	}
 		
 	LOCAL launchTime IS TIMESTAMP(TIME:SECONDS + etaSecs - halfLaunchSecs).
@@ -220,7 +218,7 @@ LOCAL FUNCTION getAzimuth {
 	LOCAL errAngle IS VANG(tnv, rv) -90.0.
 		
 	// show it on the UI
-	SET planeError TO errAngle.	
+	SET planeError TO errAngle.
 		
 	IF errAngle <> 0 {
 		LOCAL corr IS max( min( errAngle * 10, 3 ), -3).
@@ -264,12 +262,10 @@ GLOBAL FUNCTION GetRelativeInclination {
 	RETURN craftRelInc(craft, TIME).
 }
 
-
-LOCAL FUNCTION GetFuturePhaseAngle {
+GLOBAL FUNCTION GetFuturePhaseAngle {
 	PARAMETER ts_AtTime.	// ut in seconds
 
 	//LOCAL bodyPosNormed IS POSITIONAT(
-	
 
 	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, VELOCITYAT(SHIP, ts_AtTime):ORBIT:NORMALIZED):NORMALIZED.
 	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, POSITIONAT(KSS, ts_AtTime) - BODY:POSITION):NORMALIZED).
@@ -278,13 +274,13 @@ LOCAL FUNCTION GetFuturePhaseAngle {
 	
     IF sign < 0 {
         // RETURN -phase. 		// if you want negative values to represent "the target is behind the ship" in orbit
-		RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
-		//RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
+		//RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
+		RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
     }
     ELSE {
         //RETURN phase.			// if you want positive values to represent "the target is ahead of the ship" in orbit
-		RETURN -phase.			// if you want positive values to represent "the ship is ahead of the target" in orbit.
-		//RETURN 360 - phase.	// if you want this to be an absolute value of how far ahead of the target is your ship
+		//RETURN -phase.	    // if you want positive values to represent "the ship is ahead of the target" in orbit.
+		RETURN phase.			// if you want this to be an absolute value of how far ahead of the target is your ship
     }		 
 
 
@@ -300,13 +296,13 @@ LOCAL FUNCTION GetPhaseAngle {
 	
     IF sign < 0 {
         // RETURN -phase. 		// if you want negative values to represent "the target is behind the ship" in orbit
-		RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
-		//RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
+		//RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
+		RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
     }
     ELSE {
         //RETURN phase.			// if you want positive values to represent "the target is ahead of the ship" in orbit
-		RETURN -phase.			// if you want positive values to represent "the ship is ahead of the target" in orbit.
-		//RETURN 360 - phase.	// if you want this to be an absolute value of how far ahead of the target is your ship
+		//RETURN -phase.		// if you want positive values to represent "the ship is ahead of the target" in orbit.
+		RETURN phase.			// if you want this to be an absolute value of how far ahead of your ship is the target
     }
 
 }
