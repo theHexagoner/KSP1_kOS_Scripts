@@ -219,7 +219,7 @@ GLOBAL FUNCTION missionLog {
     PARAMETER line,
 			  t IS MISSIONTIME.
 	
-	scrollMissionLog("T+" + TIME(t):FULL + " " + line).
+	scrollMissionLog("T+" + TIME(t):CLOCK + " " + line).
     RETURN.
 }
 

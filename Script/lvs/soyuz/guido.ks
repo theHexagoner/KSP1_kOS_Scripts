@@ -119,6 +119,8 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 		LOCAL eta_to_AN IS etaToOrbitPlane(TRUE, iter).
 		LOCAL anPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_AN).
 		
+		missionLog("anPA: " + RoundZero(anPa, 2)).
+		
 		IF anPA < maxPhase AND anPA > minPhase  {
 			SET etaSecs TO eta_to_AN.
 		
@@ -126,6 +128,8 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 			// if that didn't work try again with a southerly launch
 			LOCAL eta_to_DN IS etaToOrbitPlane(FALSE, iter).
 			LOCAL dnPA IS GetFuturePhaseAngle(TIME:SECONDS + eta_to_DN).
+
+			missionLog("dnPA: " + RoundZero(dnPa, 2)).
 			
 			IF dnPA < maxPhase AND dnPA > minPhase {
 				SET etaSecs TO eta_to_DN.
@@ -137,8 +141,8 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 
 		PRINT iter AT (20, 1).
 		SET iter TO iter + 1.
-		//SET validWindow TO etaSecs > 600.
-		WAIT 10.
+		SET validWindow TO etaSecs > 600.
+		WAIT 0.1.
 	}
 		
 	LOCAL launchTime IS TIMESTAMP(TIME:SECONDS + etaSecs - halfLaunchSecs).
@@ -264,13 +268,12 @@ GLOBAL FUNCTION GetRelativeInclination {
 LOCAL FUNCTION GetFuturePhaseAngle {
 	PARAMETER ts_AtTime.	// ut in seconds
 
-	LOCAL bodyPos IS POSITIONAT(BODY, ts_AtTime).
-	LOCAL bodyPosNormed IS bodyPos:NORMALIZED.
-	LOCAL kssPos IS POSITIONAT(KSS, ts_AtTime).
+	//LOCAL bodyPosNormed IS POSITIONAT(
 	
-	LOCAL binormal IS VCRS(-bodyPosNormed, VELOCITYAT(SHIP, ts_atTime):ORBIT:NORMALIZED):NORMALIZED.
-	LOCAL phase IS VANG(-bodyPosNormed, VXCL(binormal, kssPos - bodyPos):NORMALIZED).
-	LOCAL signVector IS VCRS(-bodyPosNormed, (kssPos - bodyPos):NORMALIZED).
+
+	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, VELOCITYAT(SHIP, ts_AtTime):ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, POSITIONAT(KSS, ts_AtTime) - BODY:POSITION):NORMALIZED).
+	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (POSITIONAT(KSS, ts_AtTime) - BODY:POSITION):NORMALIZED).
 	LOCAL sign IS VDOT(binormal, signVector).
 	
     IF sign < 0 {
