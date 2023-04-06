@@ -165,7 +165,7 @@ LOCAL FUNCTION Mode_Circ_O {
 		SET stateFunction TO Mode_Circ_N@.
 		RETURN.
 	}
-	
+		
 	// remove the node when we are done:	
 	REMOVE mnv_Circ.
 	missionLog("CPU: removing node from flight plan").
@@ -173,7 +173,7 @@ LOCAL FUNCTION Mode_Circ_O {
 
 	// only show this after we get circular
 	SET ui_Kss_ETA TO GetETA_ClosestApproachToKss().
-	SET ui_Kss_Dist TO GetClosestApproachToKss(ui_Kss_ETA).
+	SET ui_Kss_Dist TO GetDist_ClosestApproachToKss(ui_Kss_ETA).
 		
 	SET stateFunction to Mode_Incline_N@.
 	RETURN.
@@ -369,7 +369,7 @@ LOCAL ts_TransferBurn IS TIME(0). // UT for transfer burn, seconds since epoch
 LOCAL FUNCTION Mode_Trans_Loop {
 
 	// when we get close make sure we are locked onto the node:
-	IF mnv_Transfer:ETA - mnv_Transfer_BT:MEAN <= 10 {
+	IF NOT lockedSteeringToNode AND mnv_Transfer:ETA - mnv_Transfer_BT:MEAN <= 10 {
 		LOCK STEERING TO mnv_Transfer:DELTAV.
 		missionLog("CPU: Locking steering to node").
 		SET lockedSteeringToNode TO TRUE.
@@ -416,7 +416,7 @@ LOCAL FUNCTION Mode_Trans_O {
 	
 	// poke around 3 minutes on either side
 	SET ui_Kss_ETA TO GetETA_ClosestApproachToKss(idealT - 180, idealT + 180).
-	SET ui_Kss_Dist TO GetDist_ClosestApproachToKss().
+	SET ui_Kss_Dist TO GetDist_ClosestApproachToKss(ui_Kss_ETA).
 		
 	// if we are not in active maneuver, rotate to sun-facing?	
 
@@ -448,12 +448,12 @@ LOCAL FUNCTION Mode_NullVee_N {
 	LOCAL pShip IS POSITIONAT(SHIP, t) - BODY:POSITION.
 	LOCAL rampDv IS vKss - Vship.
 	
-	missionLog("rampDV: " + RoundZero(rampDv, 3) + " dV: " + RoundZero(dV, 3)).
+	missionLog("rampDV: " + RoundZero(rampDv:MAG, 3) + " dV: " + RoundZero(dV:MAG, 3)).
 	
 	// project dv onto the radial/normal/prograde direction vectors to convert it from (X, Y, Z) into burn parameters
 	// Estimate orbital directions by looking at position and velocity of SHIP
 	LOCAL rv IS SHIP:POSITION:NORMALIZED.
-	LOCAL vel IS SHIP:VELOCITY:NORMALIZED.
+	LOCAL vel IS SHIP:VELOCITY:ORBIT:NORMALIZED.
 	LOCAL nv IS VCRS(rv, vel):NORMALIZED.
 	LOCAL sr IS VDOT(dv, rv).
 	LOCAL sn IS VDOT(dv, nv).

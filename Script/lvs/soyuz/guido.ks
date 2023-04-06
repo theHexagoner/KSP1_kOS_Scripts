@@ -1,8 +1,3 @@
-// almost all of this stuff came from either RAMP or ElWanderer or the ksLib
-// I apologize for not making better notes about where I got things
-// I had lots of help from folks on reddit, especially nuggreat
-
-
 @LAZYGLOBAL OFF.
 
 RUNONCEPATH("/common/lib_common.ks").
@@ -23,10 +18,6 @@ GLOBAL velAtAPO IS 0.0.
 
 // we need to account for how long it takes to build up significant horizontal velocity
 // used to predict launch window for intercepting the KSS orbit
-// this is badly named, half of my launch is > 80 seconds. That was my starting point (about 160 seconds) but
-// once I got the guidance working well, I was able to trim quite a bit away from that because the closed loop
-// begins immediately rather than waiting until I am higher in the atmosphere.
-// going from 160 seconds to 80 seconds took my inclination error at MECO from .5 degrees to < .01
 LOCAL halfLaunchSecs IS 80.
 
 // This parameter controls the shape of the ascent curve.
@@ -42,7 +33,7 @@ LOCAL launchToInclination IS KSS:OBT:INCLINATION.
 // Calculates the launch azimuth for a "northerly" launch
 LOCAL FUNCTION getLaunchAzimuth {
 
-    // This is what our launch azimuth WOULD be if the planet weren't moving.
+    // This IS what our launch azimuth WOULD be IF the planet weren't moving.
     LOCAL launchAzimuthInertial IS ARCSIN( COS(launchToInclination) / COS(SHIP:LATITUDE) ).
 
     // To compensate for the rotation of the planet, we need to estimate the orbital velocity we're going to gain during ascent. 
@@ -104,8 +95,8 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 	// the goal is to arrive in space as close to the KSS as possible, without going past the 
 	// phase angle needed to intercept it with a Hohmann transfer within an acceptable period of time.
 	
-	LOCAL ascentTime IS 320.					// our ascent flight-time is pretty consistent
-	LOCAL ascentDegs IS 20.0.					// and so is our downrange distance (degrees)
+	LOCAL ascentTime IS 690.					// our ascent flight-time is pretty consistent
+	LOCAL ascentDegs IS 68.0.					// and so is our downrange distance (degrees)
 	LOCAL kssDPS IS 360 / KSS:OBT:PERIOD. 		// we know how fast the KSS is moving:
 	LOCAL kssTravelDegs IS ascentTime * kssDPS.	// we can calculate how far the KSS will move (degrees) during our ascent
 
@@ -115,8 +106,9 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 	LOCAL maxPhase IS kssTravelDegs -ascentDegs -3.0.  
 	missionLog("max: " + maxPhase).
 
-	// for now, lets just say mininum phase can be 18 degrees past the launch site.
-	LOCAL minPhase IS -maxPhase.
+	// let's try a 15 degree window and see how often launches come up
+	// maybe increase the range if no acceptable window is found within so many iterations?
+	LOCAL minPhase IS maxPhase - 15.0.
 
 	// loop until we find the first suitable window.
 	LOCAL etaSecs IS -1.
@@ -132,8 +124,6 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 		
 		IF anPA < maxPhase AND anPA > minPhase  {
 			missionLog("anPA: " + RoundZero(anPa, 2)).
-			missionLog("in " + (eta_to_AN - halfLaunchSecs)).
-			missionLog("future long: " + ( eta_to_AN - halfLaunchSecs) / ship:body:rotationperiod * 360).
 			SET etaSecs TO eta_to_AN.
 		} ELSE {
 			// if that didn't work try again with a southerly launch
@@ -143,7 +133,6 @@ GLOBAL FUNCTION CalculateLaunchDetails {
 			
 			IF dnPA < maxPhase AND dnPA > minPhase {
 				missionLog("dnPA: " + RoundZero(dnPa, 2)).
-				missionLog("in " + (eta_to_DN - halfLaunchSecs)).
 				SET etaSecs TO eta_to_DN.
 				SET laz TO mAngle(180 - laz).
 			} ELSE {
@@ -275,8 +264,7 @@ GLOBAL FUNCTION GetRelativeInclination {
 	RETURN craftRelInc(craft, TIME).
 }
 
-// LOTS of help from u/nuggreat working this out
-GLOBAL FUNCTION GetFuturePhaseAngle {
+LOCAL FUNCTION GetFuturePhaseAngle {
 	PARAMETER ts_AtTime.	// seconds at epoch
 	
 	LOCAL shipRad TO (CalcGeoPositionAt(SHIP:GEOPOSITION, ts_AtTime) - BODY:POSITION):NORMALIZED.
@@ -288,25 +276,39 @@ GLOBAL FUNCTION GetFuturePhaseAngle {
 	LOCAL sign IS VDOT(binormal, signVector).
 	
     IF sign < 0 {
-        RETURN -phase. 			// if you want negative values to represent "the target is behind the ship" in orbit
-		RETURN 360 - phase. 	// this is how mechjeb reports, I think
+		RETURN -phase.			// negative indicates "the target is behind" in orbit
+        //RETURN 360 - phase. 	// this is how mechjeb reports, I think
     }
     ELSE {
-		RETURN phase.			// positive indicates "the ship is behind the target" in orbit
-		RETURN 180 - phase.		// this is how mechjeb reports, I think
+		RETURN phase. 			// positive values indicate "the target is ahead" in orbit
     }		 
 }
 
-// courtesy of u/JitteryJet
-// Calculates the position vector of the spot above (or below) a geographical coordinate at some time in the future.
-GLOBAL FUNCTION CalcGeoPositionAt {
-    PARAMETER geo,			// geoposition
-			  ts_AtTime.	// seconds from epoch
-			  
-	LOCAL duration IS ts_AtTime - TIME:SECONDS. // how long we twist
-	LOCAL diff IS (duration / BODY:ROTATIONPERIOD) * 360.
-		
-    LOCAL futureLong IS geo:LNG + diff. 
-	LOCAL futureR IS LATLNG(geo:LAT, futureLong):POSITION.
-    RETURN futureR.
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//  Phase Angle
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// derived from ksLib
+// get the phase angle between SHIP and KSS
+GLOBAL FUNCTION GetPhaseAngleToKSS {
+	
+	LOCAL shipRad TO (SHIP:POSITION - BODY:POSITION):NORMALIZED.
+	LOCAL kssRad TO (KSS:POSITION - BODY:POSITION):NORMALIZED.
+
+	LOCAL binormal IS VCRS(shipRad, SHIP:VELOCITY:ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(shipRad, VXCL(binormal, kssRad):NORMALIZED).
+	LOCAL signVector IS VCRS(shipRad, kssRad).
+	LOCAL sign IS VDOT(binormal, signVector).
+	
+    IF sign < 0 {
+        // RETURN -phase. 		// negative values represent "the KSS is behind the ship" in orbit
+		RETURN 360 - phase.  	// this is how mech jeb reports, I think... values > 180 indicate "the KSS is behind the ship"
+    }
+    ELSE {
+        RETURN phase.			// positive values represent how far "the KSS is ahead of the ship"
+    }
+
 }
+
+
+

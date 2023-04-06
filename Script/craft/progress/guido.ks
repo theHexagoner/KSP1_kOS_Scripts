@@ -71,7 +71,7 @@ LOCAL FUNCTION findCloseApproach {
 
 // derived from RAMP
 // get the distance in meters at time of closest approach
-GLOBAL FUNCTION GetClosestApproachToKss {
+GLOBAL FUNCTION GetDist_ClosestApproachToKss {
 	PARAMETER etaToClosest.
 	LOCAL timeAtClosest TO TIMESTAMP(TIME:SECONDS + etaToClosest).
 	RETURN (posAt(theKSS, timeAtClosest) - posAt(SHIP, timeAtClosest)):MAG.	
@@ -178,19 +178,21 @@ LOCAL FUNCTION utilDtTrue {
 // derived from ksLib
 // get the phase angle between SHIP and KSS
 GLOBAL FUNCTION GetPhaseAngleToKSS {
+	
+	LOCAL shipRad TO (SHIP:POSITION - BODY:POSITION):NORMALIZED.
+	LOCAL kssRad TO (theKSS:POSITION - BODY:POSITION):NORMALIZED.
 
-	LOCAL binormal IS VCRS(-KERBIN:POSITION:NORMALIZED, SHIP:VELOCITY:ORBIT:NORMALIZED):NORMALIZED.
-	LOCAL phase IS VANG(-KERBIN:POSITION:NORMALIZED, VXCL(binormal, theKSS:POSITION - KERBIN:POSITION):NORMALIZED).
-	LOCAL signVector IS VCRS(-KERBIN:POSITION:NORMALIZED, (theKSS:POSITION - KERBIN:POSITION):NORMALIZED).
+	LOCAL binormal IS VCRS(shipRad, SHIP:VELOCITY:ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(shipRad, VXCL(binormal, kssRad):NORMALIZED).
+	LOCAL signVector IS VCRS(shipRad, kssRad).
 	LOCAL sign IS VDOT(binormal, signVector).
-
 	
     IF sign < 0 {
-        // RETURN -phase. // if you want negative values to represent "the KSS is behind the ship" in orbit
-		RETURN 360 - phase.  // if you want this to be an absolute value of far ahead of your ship is the KSS
+        // RETURN -phase. 		// negative values represent "the KSS is behind the ship" in orbit
+		RETURN 360 - phase.  	// this is how mech jeb reports, I think... values > 180 indicate "the KSS is behind the ship"
     }
     ELSE {
-        RETURN phase.
+        RETURN phase.			// positive values represent how far "the KSS is ahead of the ship"
     }
 
 }

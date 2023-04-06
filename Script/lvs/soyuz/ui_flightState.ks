@@ -56,7 +56,6 @@ LOCAL missionLogLineNumber IS 17.
 
 // show the error:
 GLOBAL planeError IS 0.0.
-GLOBAL corrAngle IS 0.0.
 GLOBAL phase IS 0.0.
 
 GLOBAL FUNCTION InitializeScreen {
@@ -164,8 +163,7 @@ GLOBAL FUNCTION UpdateFlightState {
 		}
 	}
 
-	SET phase TO GetPhaseAngle().
-
+	SET phase TO GetPhaseAngleToKSS().
     RETURN.
 }
 

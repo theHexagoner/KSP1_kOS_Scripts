@@ -1,7 +1,7 @@
 @LAZYGLOBAL OFF.
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  FLIGHT STATE                                                                                                       ////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//  FLIGHT STATE                                                                                                        ////
 //	show some fancy data on the screen
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +32,7 @@ GLOBAL ui_Kss_ETA IS 0.
 GLOBAL ui_Kss_Dist IS 0.
 GLOBAL ui_Kss_ETA_display IS "----".
 GLOBAL ui_Kss_Dist_display IS "XXXX.XXX".
+
 
 // Run this once at program startup.
 GLOBAL FUNCTION InitializeFlightState {
@@ -140,7 +141,7 @@ GLOBAL FUNCTION UpdateFlightState {
 
 // Update the console:
 GLOBAL FUNCTION UpdateScreen {
-    PRINT TIME(MISSIONTIME):CLOCK                               	AT (4,  1).		// Mission time, if started
+    PRINT TIME(MISSIONTIME):CLOCK                              		AT (4,  1).		// Mission time, if started
  	PRINT SHIP:STATUS:PADLEFT(11)									AT (14, 1).		// SUB_ORBITAL or ORBITAL
 	PRINT modeName:PADLEFT(20)                                      AT (27, 1).		// what mission mode are we in?
 
@@ -163,7 +164,7 @@ GLOBAL FUNCTION UpdateScreen {
  
  	PRINT ui_Kss_ETA_display:PADLEFT(7)								AT (36, 9).		// ETA to closest approach
 	PRINT ui_Kss_Dist_display:PADLEFT(9)							AT (35, 10).	// distance at time of closest approach	
- 
+
     RETURN.
 }
 
