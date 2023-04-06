@@ -1,3 +1,8 @@
+// almost all of this stuff came from either RAMP or ElWanderer or the ksLib
+// I apologize for not making better notes about where I got things
+// I had lots of help from folks on reddit, especially nuggreat
+
+
 @LAZYGLOBAL OFF.
 
 RUNONCEPATH("/common/lib_common.ks").
@@ -18,6 +23,10 @@ GLOBAL velAtAPO IS 0.0.
 
 // we need to account for how long it takes to build up significant horizontal velocity
 // used to predict launch window for intercepting the KSS orbit
+// this is badly named, half of my launch is > 80 seconds. That was my starting point (about 160 seconds) but
+// once I got the guidance working well, I was able to trim quite a bit away from that because the closed loop
+// begins immediately rather than waiting until I am higher in the atmosphere.
+// going from 160 seconds to 80 seconds took my inclination error at MECO from .5 degrees to < .01
 LOCAL halfLaunchSecs IS 80.
 
 // This parameter controls the shape of the ascent curve.
@@ -33,7 +42,7 @@ LOCAL launchToInclination IS KSS:OBT:INCLINATION.
 // Calculates the launch azimuth for a "northerly" launch
 LOCAL FUNCTION getLaunchAzimuth {
 
-    // This IS what our launch azimuth WOULD be IF the planet weren't moving.
+    // This is what our launch azimuth WOULD be if the planet weren't moving.
     LOCAL launchAzimuthInertial IS ARCSIN( COS(launchToInclination) / COS(SHIP:LATITUDE) ).
 
     // To compensate for the rotation of the planet, we need to estimate the orbital velocity we're going to gain during ascent. 
@@ -266,63 +275,38 @@ GLOBAL FUNCTION GetRelativeInclination {
 	RETURN craftRelInc(craft, TIME).
 }
 
+// LOTS of help from u/nuggreat working this out
 GLOBAL FUNCTION GetFuturePhaseAngle {
 	PARAMETER ts_AtTime.	// seconds at epoch
 	
-	LOCAL shipPosAt IS CalcGeoPositionAt(SHIP:GEOPOSITION, ts_AtTime).
+	LOCAL shipRad TO (CalcGeoPositionAt(SHIP:GEOPOSITION, ts_AtTime) - BODY:POSITION):NORMALIZED.
+	LOCAL kssRad TO (POSITIONAT(KSS, ts_AtTime) - BODY:POSITION):NORMALIZED.
 
-	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, VELOCITYAT(KSS, ts_AtTime):ORBIT:NORMALIZED):NORMALIZED.
-	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, shipPosAt - BODY:POSITION):NORMALIZED).
-	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (shipPosAt - BODY:POSITION):NORMALIZED).
+	LOCAL binormal IS VCRS(kssRad, VELOCITYAT(KSS, ts_AtTime):ORBIT:NORMALIZED):NORMALIZED.
+	LOCAL phase IS VANG(kssRad, VXCL(binormal, shipRad):NORMALIZED).
+	LOCAL signVector IS VCRS(kssRad, (shipRad):NORMALIZED).
 	LOCAL sign IS VDOT(binormal, signVector).
 	
     IF sign < 0 {
-        // RETURN -phase. 		// if you want negative values to represent "the target is behind the ship" in orbit
-		//RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
-		RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
+        RETURN -phase. 			// if you want negative values to represent "the target is behind the ship" in orbit
+		RETURN 360 - phase. 	// this is how mechjeb reports, I think
     }
     ELSE {
-        //RETURN phase.			// if you want positive values to represent "the target is ahead of the ship" in orbit
-		//RETURN -phase.	    // if you want positive values to represent "the ship is ahead of the target" in orbit.
-		RETURN phase.			// if you want this to be an absolute value of how far ahead of the target is your ship
+		RETURN phase.			// positive indicates "the ship is behind the target" in orbit
+		RETURN 180 - phase.		// this is how mechjeb reports, I think
     }		 
-
-
 }
-
-
-LOCAL FUNCTION GetPhaseAngle {
-
-	LOCAL binormal IS VCRS(-BODY:POSITION:NORMALIZED, SHIP:VELOCITY:ORBIT:NORMALIZED):NORMALIZED.
-	LOCAL phase IS VANG(-BODY:POSITION:NORMALIZED, VXCL(binormal, TARGET:POSITION - BODY:POSITION):NORMALIZED).
-	LOCAL signVector IS VCRS(-BODY:POSITION:NORMALIZED, (TARGET:POSITION - BODY:POSITION):NORMALIZED).
-	LOCAL sign IS VDOT(binormal, signVector).
-	
-    IF sign < 0 {
-        // RETURN -phase. 		// if you want negative values to represent "the target is behind the ship" in orbit
-		//RETURN phase.			// if you want negative values to represent "the ship is behind the target" in orbit
-		RETURN 360 - phase.  	// if you want this to be an absolute value of how far ahead of your ship is the target
-    }
-    ELSE {
-        //RETURN phase.			// if you want positive values to represent "the target is ahead of the ship" in orbit
-		//RETURN -phase.		// if you want positive values to represent "the ship is ahead of the target" in orbit.
-		RETURN phase.			// if you want this to be an absolute value of how far ahead of your ship is the target
-    }
-
-}
-
 
 // courtesy of u/JitteryJet
 // Calculates the position vector of the spot above (or below) a geographical coordinate at some time in the future.
-LOCAL FUNCTION CalcGeoPositionAt {
+GLOBAL FUNCTION CalcGeoPositionAt {
     PARAMETER geo,			// geoposition
 			  ts_AtTime.	// seconds from epoch
 			  
 	LOCAL duration IS ts_AtTime - TIME:SECONDS. // how long we twist
-	LOCAL plusDPS IS BODY:ROTATIONPERIOD / 360.  // how many degrees per second, for 2.5x Kerbin should be 0.01335856618056328620728041856841
-	LOCAL plusDegs IS duration * plusDPS.
-    LOCAL futureLong IS geo:LNG + plusDegs. 
+	LOCAL diff IS (duration / BODY:ROTATIONPERIOD) * 360.
+		
+    LOCAL futureLong IS geo:LNG + diff. 
 	LOCAL futureR IS LATLNG(geo:LAT, futureLong):POSITION.
     RETURN futureR.
 }
-
