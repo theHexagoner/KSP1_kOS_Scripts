@@ -1,0 +1,8 @@
+I adapted the RSVP code by ManeatingApe to be usable within the "mission runner" ideas presented by 
+gisikw in his video series ksprogramming.
+
+See 
+https://github.com/maneatingape/rsvp/tree/main/src
+https://github.com/gisikw/ksprogramming/blob/master/episodes/e034/mission_runner.ks
+
+Anything that works is credit to them, anything broken was broken by me.
