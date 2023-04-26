@@ -44,7 +44,7 @@ LOCAL ts_Mark IS 0.
 //	that they will be able to respond to user inputs (action groups, etc.) in a timely manner
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-LOCAL m_lv IS mission( { 
+LOCAL this IS mission( { 
 	PARAMETER seq, 		// mission sequence
 			  evts,  	// mission events
 			  goNext. 	// what happens next
@@ -81,7 +81,7 @@ LOCAL m_lv IS mission( {
 	// get node for emergency orbit after we get to space
 	seq:ADD( {
 		IF (SHIP:STATUS = "SUB_ORBITAL" OR SHIP:STATUS = "ORBITING") {
-			IF SHIP:OBT:ECCENTRICITY >= 0.0005  {
+			IF SHIP:OBT:ECCENTRICITY >= 0.0005 AND SHIP:OBT:PERIAPSIS < PP_END + 1000 {
 				IF ts_Mark = 0 {
 					UNTIL NOT HASNODE { REMOVE NEXTNODE. WAIT 0. }
 					PRINT "LV: calculating emergency orbit".
@@ -98,7 +98,7 @@ LOCAL m_lv IS mission( {
 						goNext().
 					}
 
-					LOCAL burnETA IS tranzfer:GET_BURNTIME(NEXTNODE:BURNVECTOR:MAG):MEAN.
+					LOCAL burnETA IS ETA:NEXTNODE - tranzfer:GET_BURNTIME(NEXTNODE:BURNVECTOR:MAG):MEAN.
 					PRINT "LV: perform orbital burn in " + burnETA + "s".
 					SET ts_Mark TO TIME:SECONDS + burnETA.
 				}
@@ -110,7 +110,7 @@ LOCAL m_lv IS mission( {
 					goNext().
 				}
 				
-			}
+			} ELSE { goNext(). }
 		} ELSE goNext().
 	}).
 
@@ -118,15 +118,16 @@ LOCAL m_lv IS mission( {
 	seq:ADD( {
 		IF (SHIP:STATUS = "ORBITING") {
 			IF SHIP:OBT:ECCENTRICITY >= 0.0005  {
-
-				UNTIL NOT HASNODE { REMOVE NEXTNODE. WAIT 0. }
-				PRINT "LV: calculating parking orbit".
+				IF ts_Mark < TIME:SECONDS {
+					UNTIL NOT HASNODE { REMOVE NEXTNODE. WAIT 0. }
+					PRINT "LV: calculating parking orbit".
 					tranzfer:Node_For_PE(SHIP:OBT:APOAPSIS).
 
-				LOCAL burnETA IS tranzfer:GET_BURNTIME(NEXTNODE:BURNVECTOR:MAG):MEAN.
-				PRINT "LV: perform orbital burn in " + burnETA + "s".
-				SET ts_Mark TO TIME:SECONDS + burnETA.
-
+					LOCAL burnETA IS ETA:NEXTNODE - tranzfer:GET_BURNTIME(NEXTNODE:BURNVECTOR:MAG):MEAN .
+					PRINT "LV: perform orbital burn in " + burnETA + "s".
+					SET ts_Mark TO TIME:SECONDS + burnETA.
+				}
+				
 				IF TIME:SECONDS >= ts_Mark {
 					tranzfer["Exec"]().
 					LOCK THROTTLE TO 0.
@@ -134,7 +135,7 @@ LOCAL m_lv IS mission( {
 					goNext().
 				}
 
-			}
+			} ELSE { goNext(). }
 		} ELSE goNext().
 	}).
 
@@ -142,11 +143,9 @@ LOCAL m_lv IS mission( {
 	//  ASCENT COMPLETE, HANDOFF TO ACAPELLA
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	// in abort mode, we are just handing off to the spacecraft
+	// notify the payload CPU
 	seq:ADD( {
 		IF MISSION_ABORT AND SHIP:STATUS = "ORBITING" {
-		
-			// update the payload CPU	
 			PRINT "LV: handing off to CM".
 			LOCAL linkToCM_CPU TO SHIP:PARTSTAGGED("theCM")[0]:GETMODULE("kOSProcessor"):CONNECTION.
 			linkToCM_CPU:SENDMESSAGE(LIST(TRUE, "LV: HANDOFF")).
@@ -318,46 +317,6 @@ LOCAL m_lv IS mission( {
 	
 }).
 
-
-
-
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	UTILITY FUNCTIONS
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-LOCAL FUNCTION Get_Local_Gee { RETURN SHIP:BODY:MU / ((SHIP:ALTITUDE + SHIP:BODY:RADIUS)^2). }
-LOCAL FUNCTION Get_Available_TWR { RETURN SHIP:AVAILABLETHRUST / (SHIP:MASS * Get_Local_Gee()). }
-LOCAL FUNCTION Get_Current_TWR  { RETURN SHIP:THRUST / (SHIP:MASS * Get_Local_Gee()). }
-LOCAL FUNCTION Get_AoA { RETURN VANG(SHIP:VELOCITY:SURFACE, SHIP:FACING:FOREVECTOR). }
-LOCAL FUNCTION Get_Pitch { RETURN 90 - VANG(UP:FOREVECTOR, SHIP:FACING:FOREVECTOR). }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // EXPORT THE MISSION
-Export(m_lv).
+Export(this).
 }

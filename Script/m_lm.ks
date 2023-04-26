@@ -34,7 +34,7 @@ LOCAL m_lm IS mission( {
 			SET TARGET_MUNAR_ALTITUDE TO SHIP:APOAPSIS.
 			
 			// turn on the power:
-			SET theLM TO SHIP:PARTSTAGGED("theLM")[0].
+			LOCAL theLM TO SHIP:PARTSTAGGED("theLM")[0].
 			FOR rs IN theLM:RESOURCES {
 				IF rs:NAME = "ELECTRICCHARGE" rs:ENABLED ON.
 				IF rs:NAME = "MONOPROPELLANT" rs:ENABLED ON.

@@ -16,7 +16,10 @@ SET CONFIG:IPU TO 2000.0.
 	LOCAL Do_Event IS utilities:DO_EVENT@.
 
 	LOCAL allmodes IS LEXICON(
+		"PAD", run_Pad@,
 		"IA", run_IA@,
+		"IB", run_IB@,
+		"IC", run_IC@,		
 		"II", run_II@,
 		"IV", run_IV@,
 		"IVB", run_IVB@,
@@ -26,21 +29,42 @@ SET CONFIG:IPU TO 2000.0.
 	// don't abort if you're already in an abort mode
 	LOCAL abort_Lockout IS FALSE.
 
+	LOCAL FUNCTION RUN_PAD {
+	
+		// if the main engines have started, shut them off
+		Killswitch_Engaged().
+	
+	}
+
 	// this is a bad day for everybody
 	LOCAL FUNCTION RUN_IA {
+				
+		IF MISSIONTIME > 30 {
 
-		Range_Safety("RSO_A", 0.3).
+			// give margin for range safety
+			Range_Safety("RSO_A", 3).
 		
-		// shut off any running engines
-		Killswitch_Engaged().
-		
-		// fire any available retrorockets
-		Fire_Retros().
+			// shut off any running engines
+			Killswitch_Engaged().
+
+		} ELSE {
+			Range_Safety("RSO_A", 30).
+		}
 
 		// wave goodbye
 		// shut down the CPU
 		WAIT 0.
 		CORE:DEACTIVATE().
+	}
+
+	// same as IA
+	LOCAL FUNCTION RUN_IB {
+		RUN_IA().
+	}
+	
+	// same as IA
+	LOCAL FUNCTION RUN_IC {
+		RUN_IA().
 	}
 
 	// this is maybe more of a controlled disaster

@@ -20,6 +20,7 @@ SET CONFIG:IPU TO 2000.0.
 
 	// the various modes are roughly sequential and exclusive
 	LOCAL allModes IS QUEUE().
+		  allModes:PUSH("PAD").
 		  allModes:PUSH("IA").
 		  allModes:PUSH("II").
 		  allModes:PUSH("IVB").
@@ -28,7 +29,7 @@ SET CONFIG:IPU TO 2000.0.
 
 	// the currently identified Abort Mode
 	LOCAL currentMode IS LEXICON(
-		"KEY", "IA"
+		"KEY", "PAD"
 	).
 
 	LOCAL FUNCTION GET_CURRENT_MODE { RETURN currentMode:KEY. }
@@ -46,11 +47,18 @@ SET CONFIG:IPU TO 2000.0.
 		
 		// evaluate the situation
 		LOCAL isValid IS FALSE.
+
+		IF newMode = "PAD" {
+			// if we have lifted off, go to Mode IA
+			IF SHIP:PARTSTAGGED("CLAMP"):EMPTY {
+				allModes:POP().						// remove PAD
+				SET newMode TO allModes:PEEK().     // set to IA	
+			} ELSE SET isValid TO TRUE.
+		}
 		
 		IF newMode = "IA" {
 			// if the LES is gone, go to Mode II
 			IF SHIP:PARTSTAGGED("LES"):EMPTY {
-				PRINT "Mode IA no longer valid".
 				allModes:POP().						// remove IA
 				SET newMode TO allModes:PEEK().     // set to II				
 			} ELSE SET isValid TO TRUE.
@@ -59,10 +67,8 @@ SET CONFIG:IPU TO 2000.0.
 		IF NOT isValid AND newMode = "II" {
 			// this mode is the only option up to 85km ASL
 			// this mode requires a functioning Service Module
-			
 			IF SHIP:ALTITUDE > 85000 OR 
 			   SHIP:PARTSTAGGED("SERVICE_MODULE"):EMPTY {
-					PRINT "Mode II no longer valid".
 					allModes:POP().						// remove II
 					SET newMode TO allModes:PEEK().		// set to IVB
 			} ELSE SET isValid TO TRUE.
@@ -75,7 +81,6 @@ SET CONFIG:IPU TO 2000.0.
 			IF SHIP:ALTITUDE >= 95000 OR
    			   SHIP:STATUS = "ORBITING" OR 
 			   SHIP:PARTSTAGGED("theLV"):EMPTY	{
-					PRINT "Mode IVB no longer valid".
 					allModes:POP().						// remove IVB
 					SET newMode TO allModes:PEEK().		// set to IV
 			} ELSE SET isValid TO TRUE.

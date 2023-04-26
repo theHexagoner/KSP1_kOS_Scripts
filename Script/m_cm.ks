@@ -80,6 +80,8 @@ LOCAL m_cm IS mission( {
 		
 		IF VESSEL("Saturn"):DISTANCE < 25.0 {
 
+			SET TARGET TO VESSEL("Saturn").
+
 			// puff out some RCS and move away at 1 m/s
 			LOCK THROTTLE TO 0.
 			LOCK STEERING TO SHIP:PROGRADE.
@@ -203,6 +205,8 @@ LOCAL m_cm IS mission( {
 		
 		LOCK THROTTLE TO 0.
 		LOCK STEERING TO "KILL".		
+		
+		SET TARGET TO VESSEL("Saturn").
 		
 		LOCAL lv IS VESSEL("Saturn").
 		LOCAL cm IS SHIP:PARTSTAGGED("theCM")[0].		

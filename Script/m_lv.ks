@@ -322,7 +322,7 @@ LOCAL m_lv IS mission( {
 				UNTIL NOT HASNODE { REMOVE NEXTNODE. WAIT 0. }
 				PRINT "LV: calculating parking orbit".
 				tranzfer:Node_For_PE(SHIP:OBT:APOAPSIS).
-				LOCAL burnETA IS tranzfer:GET_BURNTIME(NEXTNODE:BURNVECTOR:MAG):MEAN.
+				LOCAL burnETA IS ETA:NEXTNODE -tranzfer:GET_BURNTIME(NEXTNODE:BURNVECTOR:MAG):MEAN.
 				PRINT "LV: perform orbital burn in " + burnETA + "s".
 				SET ts_Mark TO TIME:SECONDS + burnETA.
 				goNext().

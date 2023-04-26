@@ -14,11 +14,14 @@ SET CONFIG:IPU TO 2000.0.
 	LOCAL setAbortMode IS abortLib:SET_ABORT_MODE@.
 
 	LOCAL allmodes IS LEXICON(
+		"PAD", run_Pad@,
 		"IA", run_IA@,
+		"IB", run_IB@,
+		"IC", run_IC@,		
 		"II", run_II@,
 		"IV", run_IV@,
 		"IVB", run_IVB@,
-		"OBT", run_OBT@
+		"OBT", run_Obt@
 	).
 
 	// don't abort if you're already in an abort mode
@@ -27,7 +30,11 @@ SET CONFIG:IPU TO 2000.0.
 	// utilize the LES pitch motor to ensure the CM makes it to a water landing
 	// deploy canards to ensure retrograde orientation
 	// you will not go to space today
-	LOCAL FUNCTION run_IA {
+	LOCAL FUNCTION Run_Pad {
+		Run_IA().
+	}
+
+	LOCAL FUNCTION Run_IA {
 		PRINT "*** ABORT MODE IA ***".
 		
 		// decouple from the SM
@@ -61,21 +68,21 @@ SET CONFIG:IPU TO 2000.0.
 	// utilize the LES 
 	// deploy canards to ensure retrograde orientation
 	// you will not go to space today
-	LOCAL FUNCTION RUN_IB {
-		RUN_IA().
+	LOCAL FUNCTION Run_IB {
+		Run_IA().
 	}
 	
 	// utilize the LES
 	// use CM RCS to ensure retrograde orientation and fly towards water
 	// you will not get to orbit
-	LOCAL FUNCTION RUN_IC {
-		RUN_IA().
+	LOCAL FUNCTION Run_IC {
+		Run_IA().
 	}	
 
 	// utilize the SM main engines to get away
 	// CM separates and splashes immediately (emergency)
 	// you will not get to orbit
-	LOCAL FUNCTION RUN_II {
+	LOCAL FUNCTION Run_II {
 		PRINT "*** ABORT MODE II ***".
 		
 		UNTIL FALSE {
@@ -137,13 +144,13 @@ SET CONFIG:IPU TO 2000.0.
 	// utilize the SM main engines to get away
 	// CM separates and splashes at predetermined site
 	// you will not get to orbit
-	LOCAL FUNCTION RUN_III {
-		RUN_II().
+	LOCAL FUNCTION Run_III {
+		Run_II().
 	}
 	
 	// utilize the SM main engines to inject into orbit
 	// you lost the Mun
-	LOCAL FUNCTION RUN_IV {
+	LOCAL FUNCTION Run_IV {
 		
 		// write a mission mode file for Mode IV abort
 		// reboot
@@ -152,7 +159,7 @@ SET CONFIG:IPU TO 2000.0.
 		// for now hand it over to Jeb:
 		PRINT "*** ABORT MODE IV ***".
 
-		UNTIL done {
+		UNTIL FALSE {
 			// wait for the LV to decouple
 			IF SHIP:PARTSTAGGED("theLM_PORT"):LENGTH = 0 {
 								
@@ -178,6 +185,7 @@ SET CONFIG:IPU TO 2000.0.
 				SET SHIP:CONTROL:FORE TO 0.
 				SET SHIP:CONTROL:TOP TO 0.
 				SET SHIP:CONTROL:STARBOARD TO 0.
+				SAS ON.
 				WAIT 3.
 
 				CORE:DEACTIVATE().
@@ -190,7 +198,7 @@ SET CONFIG:IPU TO 2000.0.
 	// utilize the S-IVB to get the spacecraft to a point where the 
 	// SM main engine can achieve orbit
 	// You lost the Mun
-	LOCAL FUNCTION RUN_IVB {
+	LOCAL FUNCTION Run_IVB {
 
 		// write a mission mode file for Mode IVB abort
 		// reboot
@@ -201,7 +209,7 @@ SET CONFIG:IPU TO 2000.0.
 	}		
 	
 	// you have made it to orbit, but can't continue your normal mission
-	LOCAL FUNCTION RUN_OBT {
+	LOCAL FUNCTION Run_Obt {
 		
 		PRINT "MC: congratulations, you made it to orbit".
 		WAIT 3.
