@@ -548,21 +548,43 @@ LOCAL m_lv IS mission( {
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//  OUR WORK IS DONE, PREPARE TO DIE
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	// in abort Mode IVB, we just do a deorbit burn
-	seq:ADD( {
-		IF MISSION_ABORT AND SHIP:STATUS = "ORBITING" {
-			// make the deorbit burn
-			goNext().
-		} ELSE goNext().	
-	}).
 		
 	// if we injected into Mun SOI, make a correction burn to fly into the Mun
 	seq:ADD( {
 		IF SHIP:STATUS = "ORBITING" {
 			// make the correction burn
-			// should be able to use RCS
-			goNext().
+			
+
+			UNTIL NOT HASNODE { REMOVE NEXTNODE. WAIT 0. }
+				PRINT "LV: seeking Mun transfer".
+	
+				LOCAL options is LEXICON("create_maneuver_nodes", "first", 
+										"verbose", FALSE,
+										"search_duration", SHIP:OBT:PERIOD + 120,
+										"final_orbit_periapsis", 50000,
+										"final_orbit_orientation", "retrograde",
+										"max_time_of_flight", rsvp:ideal_hohmann_transfer_period(SHIP, Mun) * 2
+										).
+				
+				LOCAL plan IS rsvp:Goto(Mun, options).
+				
+				IF NOT plan:SUCCESS {
+					FOR p in plan:PROBLEMS {
+						PRINT "" + p:KEY + ": " + p:VALUE.
+					}
+				} 
+				
+				PRINT "LV: Waiting to transfer".
+				
+				// TODO: should be able to use RCS
+				tranzfer["Exec"]().
+	
+				SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
+				UNLOCK THROTTLE.
+				UNLOCK STEERING.
+			
+				goNext().
+			}
 		} ELSE goNext().	
 	}).
 
